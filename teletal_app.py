@@ -10,6 +10,88 @@ import streamlit as st
 from teletal_core import discover_menu_sections, discover_week_options, scrape_menu_rows
 
 
+def apply_theme():
+    st.markdown(
+        """
+        <style>
+        .block-container {
+            max-width: 1520px;
+            padding-top: 1.35rem;
+            padding-bottom: 2.5rem;
+        }
+        [data-testid="stSidebar"] {
+            background: #f6f8fb;
+            border-right: 1px solid #e5e7eb;
+        }
+        [data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+            gap: 0.75rem;
+        }
+        h1 {
+            font-size: 1.65rem !important;
+            line-height: 1.2 !important;
+            margin-bottom: 0.1rem !important;
+        }
+        .app-subtitle {
+            color: #64748b;
+            font-size: 0.92rem;
+            margin: 0 0 1rem 0;
+        }
+        div[data-testid="stMetric"] {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 0.8rem 0.9rem;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        }
+        div[data-testid="stMetric"] label {
+            color: #64748b !important;
+            font-size: 0.78rem !important;
+        }
+        div[data-testid="stMetricValue"] {
+            font-size: 1.25rem !important;
+            color: #0f172a;
+        }
+        div[data-testid="stExpander"] {
+            border: 1px solid #dce3eb;
+            border-radius: 8px;
+            background: #ffffff;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
+            margin-bottom: 0.55rem;
+        }
+        div[data-testid="stExpander"] summary {
+            min-height: 42px;
+            font-weight: 650;
+            color: #182230;
+        }
+        div[data-testid="stDataFrame"] {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .section-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            margin: 0.1rem 0 0.75rem 0;
+        }
+        .section-pill {
+            border: 1px solid #dbe3ec;
+            background: #f8fafc;
+            border-radius: 999px;
+            color: #334155;
+            font-size: 0.78rem;
+            padding: 0.22rem 0.55rem;
+        }
+        .stDownloadButton button {
+            border-radius: 7px;
+            font-weight: 650;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def build_xlsx(rows):
     fieldnames = list(rows[0].keys())
     numeric_cols = {
@@ -91,12 +173,88 @@ def dataframe_from_rows(rows):
     return df
 
 
+def table_height(row_count):
+    return min(540, max(180, 78 + 34 * row_count))
+
+
+def table_columns(df):
+    visible_columns = [
+        "nap", "kod", "sor_név", "név", "ár_ft", "súly_g", "kcal_adag",
+        "fehérje_g_adag", "szénhidrát_g_adag", "zsír_g_adag", "allergének",
+    ]
+    return [col for col in visible_columns if col in df.columns]
+
+
+def table_config():
+    return {
+        "nap": st.column_config.TextColumn("Nap", width="small"),
+        "kod": st.column_config.TextColumn("Kód", width="small"),
+        "sor_név": st.column_config.TextColumn("Sor", width="medium"),
+        "név": st.column_config.TextColumn("Étel", width="large"),
+        "ár_ft": st.column_config.NumberColumn("Ár", format="%d Ft", width="small"),
+        "súly_g": st.column_config.NumberColumn("Súly", format="%d g", width="small"),
+        "kcal_adag": st.column_config.NumberColumn("kcal", format="%.0f", width="small"),
+        "fehérje_g_adag": st.column_config.NumberColumn("Fehérje", format="%.1f g", width="small"),
+        "szénhidrát_g_adag": st.column_config.NumberColumn("CH", format="%.1f g", width="small"),
+        "zsír_g_adag": st.column_config.NumberColumn("Zsír", format="%.1f g", width="small"),
+        "allergének": st.column_config.TextColumn("Allergének", width="large"),
+    }
+
+
+def render_menu_table(section_df):
+    st.dataframe(
+        section_df[table_columns(section_df)],
+        use_container_width=True,
+        hide_index=True,
+        height=table_height(len(section_df)),
+        column_config=table_config(),
+    )
+
+
+def format_int(value):
+    return f"{int(round(value)):,}".replace(",", " ")
+
+
+def section_stats(section_df):
+    price_min = section_df["ár_ft"].min()
+    price_max = section_df["ár_ft"].max()
+    kcal_min = section_df["kcal_adag"].min()
+    kcal_max = section_df["kcal_adag"].max()
+
+    if pd.isna(price_min) or pd.isna(price_max):
+        price = "-"
+    else:
+        price = f"{format_int(price_min)}-{format_int(price_max)} Ft" if price_min != price_max else f"{format_int(price_min)} Ft"
+
+    if pd.isna(kcal_min) or pd.isna(kcal_max):
+        kcal = "-"
+    else:
+        kcal = f"{format_int(kcal_min)}-{format_int(kcal_max)} kcal" if kcal_min != kcal_max else f"{format_int(kcal_min)} kcal"
+    return price, kcal
+
+
+def render_section_meta(section_df):
+    price, kcal = section_stats(section_df)
+    st.markdown(
+        f"""
+        <div class="section-meta">
+            <span class="section-pill">{len(section_df)} tétel</span>
+            <span class="section-pill">{section_df["kod"].nunique()} kód</span>
+            <span class="section-pill">{section_df["nap"].nunique()} nap</span>
+            <span class="section-pill">{price}</span>
+            <span class="section-pill">{kcal}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 # ---------------------------------------------------------------------------
 # UI
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Teletál étlap", page_icon="🍽️", layout="wide")
-st.title("🍽️ Teletál étlap")
+apply_theme()
 
 try:
     weeks, active_week = week_options()
@@ -158,16 +316,48 @@ if search:
     ).any(axis=1)
     filtered = filtered[search_mask]
 
+week_label = week_labels.get(het, f"{ev}/{het}") if weeks else f"{ev}/{het}"
+
+export_rows = filtered.to_dict("records")
+full_export_rows = df.to_dict("records")
+filtered_xlsx = build_xlsx(export_rows) if export_rows else None
+full_xlsx = build_xlsx(full_export_rows)
+
+with st.sidebar:
+    st.download_button(
+        label="Excel letöltés",
+        data=filtered_xlsx if filtered_xlsx else full_xlsx,
+        file_name=f"teletal_{ev}_{het}het.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+        type="primary",
+    )
+
+title_col, action_col = st.columns([0.72, 0.28], vertical_alignment="center")
+with title_col:
+    st.title("Teletál étlap")
+    st.markdown(
+        f'<p class="app-subtitle">{week_label} · frissítve: {generated_at}</p>',
+        unsafe_allow_html=True,
+    )
+
+with action_col:
+    st.download_button(
+        label="Excel letöltés",
+        data=filtered_xlsx if filtered_xlsx else full_xlsx,
+        file_name=f"teletal_{ev}_{het}het.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+        type="primary",
+    )
+
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Menük", filtered["menü"].nunique())
-col2.metric("Sor/napi tétel", len(filtered))
+col2.metric("Tételek", len(filtered))
 col3.metric("Kódok", filtered["kod"].nunique())
-col4.metric("Hét", week_labels.get(het, f"{ev}/{het}") if weeks else f"{ev}/{het}")
+col4.metric("Hét", week_label)
 
-visible_columns = [
-    "nap", "kod", "sor_név", "név", "ár_ft", "súly_g", "kcal_adag",
-    "fehérje_g_adag", "szénhidrát_g_adag", "zsír_g_adag", "allergének",
-]
+st.divider()
 
 section_keys = set()
 for section in sections:
@@ -183,38 +373,22 @@ for section in sections:
 
     section_keys.add((title, section_name))
     section_label = title if title == section_name else f"{title} [{section_name}]"
-    expander_label = f"{section_label} · {len(section_df)} tétel · {section_df['kod'].nunique()} kód"
+    expander_label = f"{section_label}    {len(section_df)} tétel    {section_df['kod'].nunique()} kód"
 
     with st.expander(expander_label, expanded=False):
         if section_df.empty:
             st.info("Nincs találat a jelenlegi szűrőkkel.")
             continue
-        st.dataframe(
-            section_df[[col for col in visible_columns if col in section_df.columns]],
-            use_container_width=True,
-            hide_index=True,
-            height=min(520, 80 + 35 * len(section_df)),
-        )
+        render_section_meta(section_df)
+        render_menu_table(section_df)
 
 remaining = filtered[
     ~filtered.apply(lambda row: (row["menü"], row["menü_azonosító"]) in section_keys, axis=1)
 ]
 if not remaining.empty:
     with st.expander(f"Egyéb · {len(remaining)} tétel · {remaining['kod'].nunique()} kód", expanded=False):
-        st.dataframe(
-            remaining[[col for col in visible_columns if col in remaining.columns]],
-            use_container_width=True,
-            hide_index=True,
-            height=min(520, 80 + 35 * len(remaining)),
-        )
+        render_section_meta(remaining)
+        render_menu_table(remaining)
 
 if filtered.empty:
     st.info("Nincs találat a jelenlegi szűrőkkel.")
-else:
-    xlsx_buf = build_xlsx(filtered.to_dict("records"))
-    st.download_button(
-        label="Excel export",
-        data=xlsx_buf,
-        file_name=f"teletal_{ev}_{het}het.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
