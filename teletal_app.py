@@ -7,7 +7,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 import streamlit as st
 
-from teletal_core import discover_menu_sections, discover_weeks, scrape_menu_rows
+from teletal_core import discover_menu_sections, discover_week_options, scrape_menu_rows
 
 
 def build_xlsx(rows):
@@ -67,7 +67,7 @@ def cached_menu_rows(week):
 
 @st.cache_data(ttl=24 * 60 * 60)
 def week_options():
-    return discover_weeks()
+    return discover_week_options()
 
 
 @st.cache_data(ttl=24 * 60 * 60)
@@ -111,11 +111,13 @@ with st.sidebar:
         st.rerun()
 
 if weeks:
+    week_values = [option["week"] for option in weeks]
+    week_labels = {option["week"]: option["label"] for option in weeks}
     week = st.sidebar.selectbox(
         "Hét",
-        weeks,
-        index=weeks.index(active_week) if active_week in weeks else 0,
-        format_func=lambda value: f"{value}. hét",
+        week_values,
+        index=week_values.index(active_week) if active_week in week_values else 0,
+        format_func=lambda value: week_labels.get(value, f"{value}. hét"),
     )
 else:
     week = None
@@ -144,15 +146,12 @@ with st.sidebar:
     st.caption(f"Utolsó frissítés: {generated_at}")
     st.caption(f"{len(sections)} menü, {len(df)} sor/napi tétel")
 
-    menu_values = sorted(df["menü"].dropna().unique())
-    selected_menus = st.multiselect("Menü szűrő", menu_values, default=menu_values)
-
     day_values = list(df["nap"].dropna().unique())
     selected_days = st.multiselect("Nap szűrő", day_values, default=day_values)
 
     search = st.text_input("Keresés")
 
-filtered = df[df["menü"].isin(selected_menus) & df["nap"].isin(selected_days)]
+filtered = df[df["nap"].isin(selected_days)]
 if search:
     search_mask = filtered.astype(str).apply(
         lambda col: col.str.contains(search, case=False, na=False)
@@ -163,14 +162,51 @@ col1, col2, col3, col4 = st.columns(4)
 col1.metric("Menük", filtered["menü"].nunique())
 col2.metric("Sor/napi tétel", len(filtered))
 col3.metric("Kódok", filtered["kod"].nunique())
-col4.metric("Hét", f"{ev}/{het}")
+col4.metric("Hét", week_labels.get(het, f"{ev}/{het}") if weeks else f"{ev}/{het}")
 
-st.dataframe(
-    filtered,
-    use_container_width=True,
-    hide_index=True,
-    height=680,
-)
+visible_columns = [
+    "nap", "kod", "sor_név", "név", "ár_ft", "súly_g", "kcal_adag",
+    "fehérje_g_adag", "szénhidrát_g_adag", "zsír_g_adag", "allergének",
+]
+
+section_keys = set()
+for section in sections:
+    title = section["title"]
+    section_name = section["section_name"]
+    section_df = filtered[
+        (filtered["menü"] == title)
+        & (filtered["menü_azonosító"] == section_name)
+    ].sort_values(["nap_szám", "kod", "sor_név", "név"])
+
+    if search and section_df.empty:
+        continue
+
+    section_keys.add((title, section_name))
+    section_label = title if title == section_name else f"{title} [{section_name}]"
+    expander_label = f"{section_label} · {len(section_df)} tétel · {section_df['kod'].nunique()} kód"
+
+    with st.expander(expander_label, expanded=False):
+        if section_df.empty:
+            st.info("Nincs találat a jelenlegi szűrőkkel.")
+            continue
+        st.dataframe(
+            section_df[[col for col in visible_columns if col in section_df.columns]],
+            use_container_width=True,
+            hide_index=True,
+            height=min(520, 80 + 35 * len(section_df)),
+        )
+
+remaining = filtered[
+    ~filtered.apply(lambda row: (row["menü"], row["menü_azonosító"]) in section_keys, axis=1)
+]
+if not remaining.empty:
+    with st.expander(f"Egyéb · {len(remaining)} tétel · {remaining['kod'].nunique()} kód", expanded=False):
+        st.dataframe(
+            remaining[[col for col in visible_columns if col in remaining.columns]],
+            use_container_width=True,
+            hide_index=True,
+            height=min(520, 80 + 35 * len(remaining)),
+        )
 
 if filtered.empty:
     st.info("Nincs találat a jelenlegi szűrőkkel.")

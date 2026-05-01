@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass
+from datetime import date
 from typing import Callable, Iterable
 from urllib.parse import quote
 
@@ -586,3 +587,52 @@ def discover_weeks(source: MenuSource = MENU_SOURCES[0]) -> tuple[list[str], str
         weeks.insert(0, context["het"])
 
     return weeks, context["het"]
+
+
+def extract_week_dates(soup: BeautifulSoup, year: str) -> list[date]:
+    dates: list[date] = []
+    seen: set[tuple[int, int]] = set()
+
+    for heading in soup.select(".menu-heading"):
+        text = clean_text(heading.get_text(" ", strip=True))
+        for month, day in re.findall(r"\b(\d{2})\.(\d{2})\b", text):
+            key = (int(month), int(day))
+            if key in seen:
+                continue
+            seen.add(key)
+            dates.append(date(int(year), key[0], key[1]))
+
+    return dates
+
+
+def week_date_label(dates: list[date]) -> str:
+    if not dates:
+        return ""
+    first = dates[0]
+    last = dates[-1]
+    return f"{first:%m.%d} - {last:%m.%d}"
+
+
+def discover_week_options(source: MenuSource = MENU_SOURCES[0]) -> tuple[list[dict], str | None]:
+    weeks, active_week = discover_weeks(source)
+    session = requests.Session()
+    session.headers.update(HEADERS)
+
+    options = []
+    for week in weeks:
+        response = session.get(source_url(source, week), timeout=20)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        context = extract_menu_context(response.text, soup)
+        date_label = week_date_label(extract_week_dates(soup, context["ev"]))
+        label = f"{week}. hét ({date_label})" if date_label else f"{week}. hét"
+        options.append(
+            {
+                "week": week,
+                "label": label,
+                "date_range": date_label,
+                "ev": context["ev"],
+            }
+        )
+
+    return options, active_week
