@@ -1,0 +1,40 @@
+﻿hét	év	nap_szám	nap	kod	név	ár_ft	súly_g	kcal_adag	kj_adag	zsír_g_adag	zsír_telített_g_adag	szénhidrát_g_adag	cukor_g_adag	rost_g_adag	fehérje_g_adag	só_g_adag	kcal_100g	kj_100g	zsír_g_100g	szénhidrát_g_100g	fehérje_g_100g	allergének
+14	2026	1	Hétfő	RE1	Leveles, sajtos pogácsa	315 Ft	65	401.1	1672.8	25.4	12.2	36.4	4.8	0.1	6.6	1.4	617.1	2573.5	39.1	56.0	10.2	Glutén, Tej, Tojás
+14	2026	2	Kedd	RE1	Fahéjas csiga	315 Ft	70	344.3	1444.5	14.9	7.2	49.1	23.2	0.0	3.4	0.8	491.9	2063.6	21.3	70.1	4.9	Glutén, Tej, Szója
+14	2026	3	Szerda	RE1	Tejfölös pogácsa	315 Ft	70	377.7	1579.6	20.4	11.0	40.3	2.9	0.1	8.2	1.7	539.6	2256.6	29.1	57.6	11.7	Tej, Tojás, Glutén, Szója
+14	2026	4	Csütörtök	RE1	Pizzás rúd	315 Ft	80	397.3	1660.3	22.6	10.7	41.8	6.4	0.4	6.6	5.9	496.6	2075.4	28.3	52.3	8.3	Tej, Tojás, Mustár, Glutén, Szója
+14	2026	1	Hétfő	RE2	Virslis, sajtos, pizzás párna	405 Ft	80	323.5	1355.3	15.4	6.9	37.7	5.9	0.8	8.2	2.7	404.4	1694.1	19.3	47.1	10.3	Tej, Tojás, Mustár, Glutén, Szója
+14	2026	2	Kedd	RE2	Baconos-sajtkrémes croissant	405 Ft	75	348.0	1451.5	22.1	10.7	30.4	3.4	0.1	6.9	2.0	464.0	1935.3	29.5	40.5	9.2	Tej, Szója, Glutén
+14	2026	3	Szerda	RE2	Gesztenyés búrkifli	405 Ft	80	340.7	1426.2	17.6	9.0	41.7	5.2	0.0	4.0	0.7	425.9	1782.8	22.0	52.1	5.0	Glutén, Tej, Szója
+14	2026	4	Csütörtök	RE2	Szilvás croissant	405 Ft	80	315.3	1319.3	16.0	8.1	38.6	10.7	1.3	3.7	0.8	394.1	1649.1	20.0	48.3	4.6	Glutén, Tej, Szója
+14	2026	1	Hétfő	ZK	ZabKása eperöntettel, édesítőszerekkel	570 Ft	200	262.1	1097.3	11.5	7.0	26.2	7.2	4.4	11.3	0.3	131.1	548.7	5.8	13.1	5.7	Tej, Glutén
+14	2026	2	Kedd	ZK	ZabKása Shape szórat (aszalt vörösáfonya, földimogyoró, mandula), édesítőszerekkel	570 Ft	200	341.0	1426.5	16.1	8.1	32.6	10.9	5.4	13.8	0.4	170.5	713.3	8.1	16.3	6.9	Tej, Glutén, Földimogyoró, Diófélék
+14	2026	3	Szerda	ZK	Csokis-banános ZabKása, édesítőszerekkel	570 Ft	200	402.5	1683.5	19.5	12.0	37.3	8.6	5.7	16.7	0.3	201.3	841.8	9.8	18.7	8.4	Szója, Tej, Glutén
+14	2026	4	Csütörtök	ZK	ZabKása sárgabaracköntettel, édesítőszerekkel	570 Ft	200	263.5	1103.3	11.3	7.0	26.5	8.3	4.9	11.4	0.3	131.8	551.7	5.7	13.3	5.7	Tej, Glutén
+14	2026	1	Hétfő	A1	Tavaszi zöldségleves	840 Ft	400	215.1	896.5	12.6	1.5	18.6	1.2	4.2	4.7	5.5	53.8	224.1	3.2	4.7	1.2	Glutén, Tojás, Mustár, Zeller
+14	2026	2	Kedd	A1	Sütőtökkrémleves, pirított hagymával	840 Ft	20	370.1	1536.1	29.5	17.9	21.0	10.2	0.2	5.1	3.5	88.1	365.7	7.0	5.0	1.2	Glutén
+14	2026	3	Szerda	A1	Börzsönyi gombaleves csipetkével (3-féle gombából, tejföllel)	840 Ft	400	240.4	1000.8	14.8	6.9	16.4	2.5	4.3	8.2	5.4	60.1	250.2	3.7	4.1	2.1	Glutén, Zeller, Tej, Tojás
+14	2026	4	Csütörtök	A1	Fokhagymakrémleves pirított kenyérkockával	840 Ft	400	418.8	1744.9	27.4	13.8	35.1	6.3	1.5	7.3	6.4	99.7	415.5	6.5	8.4	1.7	Tej, Szója, Zeller, Glutén
+14	2026	5	Péntek	A1	"Bécsi zöldségkrémleves, 
+pirított kenyérkocka"	840 Ft	20	341.6	1423.0	22.5	14.8	27.8	9.2	2.4	6.0	3.5	81.3	338.8	5.4	6.6	1.4	Glutén
+14	2026	1	Hétfő	A2	Tejszínes gyümölcsleves	1.005 Ft	400	349.7	1471.8	10.2	8.6	59.6	53.2	3.2	3.2	0.5	87.4	368.0	2.6	14.9	0.8	Tej, Szója, Glutén
+14	2026	2	Kedd	A2	Zöldborsóleves	1.005 Ft	400	262.0	1096.3	11.5	2.0	27.6	6.5	6.0	9.2	4.6	65.5	274.1	2.9	6.9	2.3	Glutén, Tej, Zeller, Tojás
+14	2026	3	Szerda	A2	Tejszínes sárgabarack-krémleves	1.005 Ft	400	342.8	1442.6	10.0	8.5	58.1	53.9	2.9	3.6	0.7	85.7	360.7	2.5	14.5	0.9	Tej, Szója, Glutén
+14	2026	4	Csütörtök	A2	Cheddar sajtos póréhagymaleves	1.005 Ft	400	393.0	1629.8	31.8	14.9	11.0	3.1	1.1	15.2	5.4	98.3	407.5	8.0	2.8	3.8	Tej, Szója, Zeller, Glutén
+14	2026	1	Hétfő	A3	Sajtos-tejszínes brokkolikrémleves pirított kenyérkockával	885 Ft	20	375.8	1565.5	23.4	15.0	23.4	7.3	5.1	15.5	6.0	89.5	372.7	5.6	5.6	3.7	Glutén
+14	2026	2	Kedd	A3	Akácmézes szamócakrémleves almával	885 Ft	400	373.7	1573.8	10.5	8.6	65.1	58.6	2.8	3.5	0.6	93.4	393.5	2.6	16.3	0.9	Tej, Szója, Glutén
+14	2026	3	Szerda	A3	Karfiolleves	885 Ft	400	201.4	841.6	10.5	2.8	20.7	6.0	2.9	4.6	6.6	50.4	210.4	2.6	5.2	1.2	Tej, Zeller, Glutén, Tojás
+14	2026	4	Csütörtök	A3	Balatoni gyümölcsleves (cseresznye, meggy, alma, körte)	885 Ft	400	347.9	1464.9	10.3	8.6	59.7	53.4	1.8	3.2	0.5	87.0	366.2	2.6	14.9	0.8	Tej, Szója, Glutén
+14	2026	1	Hétfő	B	Szárnyas májgaluskaleves	980 Ft	500	179.0	753.0	5.4	0.9	23.8	1.0	2.5	7.6	4.9	35.8	150.6	1.1	4.8	1.5	Zeller, Tojás, Glutén, Szója
+14	2026	2	Kedd	B	Frankfurtileves	980 Ft	500	357.4	1486.9	23.6	7.5	22.7	3.1	4.9	11.1	6.9	71.5	297.4	4.7	4.5	2.2	Tej, Mustár, Zeller, Glutén
+14	2026	3	Szerda	B	Újházi tyúkhúsleves	980 Ft	500	130.1	549.6	1.4	0.5	9.8	0.5	3.2	18.0	5.4	26.0	109.9	0.3	2.0	3.6	Glutén, Tojás, Zeller, Szója, Tej
+14	2026	4	Csütörtök	B	Palócleves (tejföl, zöldbab, burgonya, marhahús)	980 Ft	500	469.4	1955.2	29.4	8.8	32.4	10.0	6.2	15.8	6.2	93.9	391.0	5.9	6.5	3.2	Tej, Mustár, Zeller, Glutén
+14	2026	5	Péntek	B	Nagyböjti halászlé (copfocska tésztával)	980 Ft	500	405.3	1698.5	16.4	3.1	23.8	5.8	6.7	37.2	9.4	81.1	339.7	3.3	4.8	7.4	Hal, Glutén, Tojás, Mustár, Zeller
+14	2026	1	Hétfő	C	Székelykáposzta	2.020 Ft	600	944.0	3927.4	65.4	15.3	50.7	9.0	5.3	35.6	12.5	157.3	654.6	10.9	8.5	5.9	Tej, Glutén, Tojás, Szója, Mustár, Zeller, Kén-dioxid
+14	2026	2	Kedd	C	Juhtúrós sztrapacska szalonnapörccel	2.020 Ft	520	1333.8	5561.1	85.3	26.9	113.2	4.6	2.1	27.2	10.7	256.5	1069.4	16.4	21.8	5.2	Tej, Tojás, Glutén
+14	2026	3	Szerda	C	Paradicsomos húsgombóc, főtt burgonya	2.020 Ft	540	930.0	3899.4	37.0	8.0	115.0	30.5	13.4	27.6	12.0	172.2	722.1	6.9	21.3	5.1	Tojás, Glutén, Mustár, Zeller
+14	2026	4	Csütörtök	C	Brassói aprópecsenye (csirkéből)	2.020 Ft	450	1215.0	5083.9	57.6	11.2	104.0	0.9	15.2	62.5	8.2	270.0	1129.8	12.8	23.1	13.9	Glutén, Tej, Tojás, Szója, Zeller
+14	2026	1	Hétfő	D	Almás, sajtos kukoricasaláta csirkemell csíkokkal	850 Ft	230	695.7	2879.9	58.2	14.6	19.7	13.1	8.0	19.4	2.5	302.5	1252.1	25.3	8.6	8.4	Tej, Tojás, Mustár
+14	2026	2	Kedd	D	Tormás sonkatekercs, tojássaláta	850 Ft	220	587.6	2438.0	47.5	10.2	18.2	6.2	0.0	21.9	3.9	267.1	1108.2	21.6	8.3	10.0	Tej, Glutén, Kén-dioxid, Szója, Tojás, Mustár
+14	2026	3	Szerda	D	Holland sajtsaláta (uborka, alma, burgonya, sonka, sajt joghurtos dresszingben)	850 Ft	200	325.7	1356.9	20.7	13.0	15.6	6.6	2.7	18.0	4.7	162.9	678.5	10.4	7.8	9.0	Szója, Tej, Mustár
+14	2026	4	Csütörtök	D	Jércesaláta (majonéz, csirkemell, alma, burgonya, tojás)	850 Ft	235	586.5	2433.9	45.3	10.3	23.7	9.3	3.9	19.1	2.3	249.6	1035.7	19.3	10.1	8.1	Tojás, Tej, Mustár
