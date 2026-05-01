@@ -1,4 +1,7 @@
 import io
+from datetime import datetime
+
+import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
@@ -53,54 +56,62 @@ def build_xlsx(rows):
     return buf
 
 
-def scrape(progress_bar, status_text, selected_section_keys, week):
-    def update_progress(index, total, item):
-        status_text.text(
-            "Tápérték letöltése: "
-            f"{index}/{total}  ({item['menu_title']}, {item['kod']}, {item['nap_nev']})"
-        )
-        if total:
-            progress_bar.progress(index / total)
-
-    status_text.text("Menük letöltése...")
+@st.cache_data(ttl=24 * 60 * 60, show_spinner=False)
+def cached_menu_rows(week):
     rows, pages = scrape_menu_rows(
         week=week,
-        selected_section_keys=set(selected_section_keys),
-        progress_callback=update_progress,
-        delay_seconds=0.1,
+        delay_seconds=0,
     )
-
-    ev = pages[0]["ev"] if pages else ""
-    het = pages[0]["het"] if pages else ""
-    return rows, ev, het, pages
+    return rows, pages, datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=24 * 60 * 60)
 def week_options():
     return discover_weeks()
 
 
-@st.cache_data(ttl=1800)
+@st.cache_data(ttl=24 * 60 * 60)
 def menu_options(week):
     sections, _ = discover_menu_sections(week)
     return sections
+
+
+def dataframe_from_rows(rows):
+    df = pd.DataFrame(rows)
+    numeric_cols = [
+        "hét", "év", "nap_szám", "ár_ft", "súly_g", "kcal_adag", "kj_adag",
+        "zsír_g_adag", "zsír_telített_g_adag", "szénhidrát_g_adag",
+        "cukor_g_adag", "rost_g_adag", "fehérje_g_adag", "só_g_adag",
+        "kcal_100g", "kj_100g", "zsír_g_100g", "szénhidrát_g_100g",
+        "fehérje_g_100g",
+    ]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
 
 
 # ---------------------------------------------------------------------------
 # UI
 # ---------------------------------------------------------------------------
 
-st.set_page_config(page_title="Teletál étlap letöltő", page_icon="🍽️", layout="wide")
-st.title("🍽️ Teletál étlap letöltő")
-st.write("Letölti a kiválasztott menüket a tápértékekkel együtt, és Excel fájlba menti.")
+st.set_page_config(page_title="Teletál étlap", page_icon="🍽️", layout="wide")
+st.title("🍽️ Teletál étlap")
 
 try:
     weeks, active_week = week_options()
 except Exception:
     weeks, active_week = [], None
 
+with st.sidebar:
+    if st.button("Frissítés most", use_container_width=True):
+        cached_menu_rows.clear()
+        menu_options.clear()
+        week_options.clear()
+        st.rerun()
+
 if weeks:
-    week = st.selectbox(
+    week = st.sidebar.selectbox(
         "Hét",
         weeks,
         index=weeks.index(active_week) if active_week in weeks else 0,
@@ -109,49 +120,65 @@ if weeks:
 else:
     week = None
 
-sections = menu_options(week) if week else []
-section_labels = {
-    section["key"]: f"{section['title']} [{section['section_name']}]"
-    for section in sections
-}
-selected_section_keys = st.multiselect(
-    "Menük",
-    list(section_labels),
-    default=list(section_labels),
-    format_func=lambda key: section_labels[key],
+if not week:
+    st.error("Nem sikerült betölteni a választható heteket.")
+    st.stop()
+
+try:
+    with st.spinner("Adatok betöltése..."):
+        rows, pages, generated_at = cached_menu_rows(week)
+        sections = menu_options(week)
+except Exception as e:
+    st.error(f"Hiba történt: {e}")
+    st.stop()
+
+if not rows:
+    st.warning("Nem található letölthető étel.")
+    st.stop()
+
+df = dataframe_from_rows(rows)
+ev = pages[0]["ev"] if pages else ""
+het = pages[0]["het"] if pages else week
+
+with st.sidebar:
+    st.caption(f"Utolsó frissítés: {generated_at}")
+    st.caption(f"{len(sections)} menü, {len(df)} sor/napi tétel")
+
+    menu_values = sorted(df["menü"].dropna().unique())
+    selected_menus = st.multiselect("Menü szűrő", menu_values, default=menu_values)
+
+    day_values = list(df["nap"].dropna().unique())
+    selected_days = st.multiselect("Nap szűrő", day_values, default=day_values)
+
+    search = st.text_input("Keresés")
+
+filtered = df[df["menü"].isin(selected_menus) & df["nap"].isin(selected_days)]
+if search:
+    search_mask = filtered.astype(str).apply(
+        lambda col: col.str.contains(search, case=False, na=False)
+    ).any(axis=1)
+    filtered = filtered[search_mask]
+
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Menük", filtered["menü"].nunique())
+col2.metric("Sor/napi tétel", len(filtered))
+col3.metric("Kódok", filtered["kod"].nunique())
+col4.metric("Hét", f"{ev}/{het}")
+
+st.dataframe(
+    filtered,
+    use_container_width=True,
+    hide_index=True,
+    height=680,
 )
 
-if st.button("📥 Letöltés indítása", type="primary", disabled=not selected_section_keys):
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-
-    try:
-        rows, ev, het, pages = scrape(progress_bar, status_text, selected_section_keys, week)
-        if not rows:
-            st.warning("Nem található letölthető étel a kiválasztott menükben.")
-        else:
-            status_text.text("Excel fájl összeállítása...")
-            xlsx_buf = build_xlsx(rows)
-
-            status_text.text(f"✅ Kész! {len(rows)} étel, {ev} {het}. hét")
-            progress_bar.progress(1.0)
-
-            st.success(f"Sikeresen letöltve {len(rows)} étel a {ev}. évi {het}. hétre.")
-            st.caption(
-                "Menük: "
-                + f"{len(selected_section_keys)} kiválasztva, {pages[0]['item_count']} sor/napi tétel"
-            )
-            st.download_button(
-                label="💾 Excel fájl letöltése",
-                data=xlsx_buf,
-                file_name=f"teletal_{ev}_{het}het.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-
-            # preview table
-            import pandas as pd
-            df = pd.DataFrame(rows)
-            st.dataframe(df, use_container_width=True)
-
-    except Exception as e:
-        st.error(f"Hiba történt: {e}")
+if filtered.empty:
+    st.info("Nincs találat a jelenlegi szűrőkkel.")
+else:
+    xlsx_buf = build_xlsx(filtered.to_dict("records"))
+    st.download_button(
+        label="Excel export",
+        data=xlsx_buf,
+        file_name=f"teletal_{ev}_{het}het.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
