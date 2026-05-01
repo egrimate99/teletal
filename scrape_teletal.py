@@ -1,8 +1,8 @@
 """
 Teletál menu scraper.
 
-Fetches the selected week's Teletál, Teletál Vega, and Alakreform/Réka Menü
-items with nutrition data, then writes CSV and XLSX exports.
+Fetches the selected week's Teletál menu sections with nutrition data,
+then writes CSV and XLSX exports.
 """
 
 import csv
@@ -90,7 +90,7 @@ def scrape_menu(week: str | None = None) -> None:
 
     def show_progress(index: int, total: int, item: dict) -> None:
         print(
-            f"  [{index}/{total}] {item['source']:<22} "
+            f"  [{index}/{total}] {item['menu_title'][:28]:<28} "
             f"kod={item['kod']:<6} nap={item['nap']} ({item['nap_nev']})"
         )
 

@@ -4,7 +4,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 import streamlit as st
 
-from teletal_core import MENU_SOURCES, SOURCE_BY_LABEL, discover_weeks, scrape_menu_rows
+from teletal_core import discover_menu_sections, discover_weeks, scrape_menu_rows
 
 
 def build_xlsx(rows):
@@ -53,21 +53,19 @@ def build_xlsx(rows):
     return buf
 
 
-def scrape(progress_bar, status_text, selected_labels, week):
-    sources = [SOURCE_BY_LABEL[label] for label in selected_labels]
-
+def scrape(progress_bar, status_text, selected_section_keys, week):
     def update_progress(index, total, item):
         status_text.text(
             "Tápérték letöltése: "
-            f"{index}/{total}  ({item['source']}, {item['kod']}, {item['nap_nev']})"
+            f"{index}/{total}  ({item['menu_title']}, {item['kod']}, {item['nap_nev']})"
         )
         if total:
             progress_bar.progress(index / total)
 
-    status_text.text("Étlapok letöltése...")
+    status_text.text("Menük letöltése...")
     rows, pages = scrape_menu_rows(
-        sources=sources,
         week=week,
+        selected_section_keys=set(selected_section_keys),
         progress_callback=update_progress,
         delay_seconds=0.1,
     )
@@ -82,16 +80,19 @@ def week_options():
     return discover_weeks()
 
 
+@st.cache_data(ttl=1800)
+def menu_options(week):
+    sections, _ = discover_menu_sections(week)
+    return sections
+
+
 # ---------------------------------------------------------------------------
 # UI
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Teletál étlap letöltő", page_icon="🍽️", layout="wide")
 st.title("🍽️ Teletál étlap letöltő")
-st.write("Letölti a kiválasztott étlapokat a tápértékekkel együtt, és Excel fájlba menti.")
-
-source_labels = [source.label for source in MENU_SOURCES]
-selected_labels = st.multiselect("Étlapok", source_labels, default=source_labels)
+st.write("Letölti a kiválasztott menüket a tápértékekkel együtt, és Excel fájlba menti.")
 
 try:
     weeks, active_week = week_options()
@@ -108,14 +109,26 @@ if weeks:
 else:
     week = None
 
-if st.button("📥 Letöltés indítása", type="primary", disabled=not selected_labels):
+sections = menu_options(week) if week else []
+section_labels = {
+    section["key"]: f"{section['title']} [{section['section_name']}]"
+    for section in sections
+}
+selected_section_keys = st.multiselect(
+    "Menük",
+    list(section_labels),
+    default=list(section_labels),
+    format_func=lambda key: section_labels[key],
+)
+
+if st.button("📥 Letöltés indítása", type="primary", disabled=not selected_section_keys):
     progress_bar = st.progress(0)
     status_text = st.empty()
 
     try:
-        rows, ev, het, pages = scrape(progress_bar, status_text, selected_labels, week)
+        rows, ev, het, pages = scrape(progress_bar, status_text, selected_section_keys, week)
         if not rows:
-            st.warning("Nem található letölthető étel a kiválasztott étlapokon.")
+            st.warning("Nem található letölthető étel a kiválasztott menükben.")
         else:
             status_text.text("Excel fájl összeállítása...")
             xlsx_buf = build_xlsx(rows)
@@ -125,8 +138,8 @@ if st.button("📥 Letöltés indítása", type="primary", disabled=not selected
 
             st.success(f"Sikeresen letöltve {len(rows)} étel a {ev}. évi {het}. hétre.")
             st.caption(
-                "Források: "
-                + ", ".join(f"{page['source']} ({page['item_count']})" for page in pages)
+                "Menük: "
+                + f"{len(selected_section_keys)} kiválasztva, {pages[0]['item_count']} sor/napi tétel"
             )
             st.download_button(
                 label="💾 Excel fájl letöltése",

@@ -4,6 +4,7 @@ import re
 import time
 from dataclasses import dataclass
 from typing import Callable, Iterable
+from urllib.parse import quote
 
 import requests
 from bs4 import BeautifulSoup
@@ -40,8 +41,6 @@ class MenuSource:
 
 MENU_SOURCES = (
     MenuSource("Teletál", "https://www.teletal.hu", "/etlap"),
-    MenuSource("Teletál Vega", "https://www.teletal.hu", "/etlap/vega"),
-    MenuSource("Alakreform / Réka Menü", "https://www.rekamenu.hu", "/etlap"),
 )
 
 SOURCE_BY_LABEL = {source.label: source for source in MENU_SOURCES}
@@ -104,36 +103,153 @@ def parse_price_ft(text: str) -> str:
     return re.sub(r"\D", "", matches[-1].group(1))
 
 
-def extract_item_category(tag) -> str:
+def format_number(value: float) -> str:
+    rounded = round(value, 1)
+    if rounded == int(rounded):
+        return str(int(rounded))
+    return f"{rounded:.1f}"
+
+
+def menu_section_tags(soup: BeautifulSoup) -> list:
+    return [
+        section
+        for section in soup.find_all("section")
+        if section.get("section") and section.get("ev") and section.get("het") and section.get("ewid")
+    ]
+
+
+def extract_section_title(section) -> str:
+    header = section.find(class_=re.compile(r"\bmenu-section-header\b"))
+    if header:
+        title = clean_text(header.get_text(" ", strip=True))
+        if title:
+            if len(title) <= 120:
+                return title
+            return clean_text(section.get("section", "")) or title[:120]
+
+    heading = section.find(["h1", "h2", "h3"])
+    if heading:
+        title = clean_text(heading.get_text(" ", strip=True))
+        if title and len(title) <= 120:
+            return title
+
+    return clean_text(section.get("section", ""))
+
+
+def section_key(source: MenuSource, section, index: int) -> str:
+    section_name = clean_text(section.get("section", ""))
+    return f"{source.label}|{source.path}|{index}|{section_name}"
+
+
+def section_summary(source: MenuSource, section, index: int) -> dict:
+    dummy = section.find(class_=re.compile(r"\bdummy\b"))
+    return {
+        "key": section_key(source, section, index),
+        "source": source.label,
+        "section_name": clean_text(section.get("section", "")),
+        "title": extract_section_title(section),
+        "ev": section.get("ev", ""),
+        "het": section.get("het", ""),
+        "ewid": section.get("ewid", ""),
+        "is_lazy": bool(dummy),
+        "dummy_rows": int(dummy.get("db", 0)) if dummy and str(dummy.get("db", "")).isdigit() else 0,
+    }
+
+
+def discover_menu_sections(
+    week: str | None = None,
+    source: MenuSource = MENU_SOURCES[0],
+) -> tuple[list[dict], dict]:
+    session = requests.Session()
+    session.headers.update(HEADERS)
+    response = session.get(source_url(source, week), timeout=20)
+    response.raise_for_status()
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    context = extract_menu_context(response.text, soup)
+    sections = [
+        section_summary(source, section, index)
+        for index, section in enumerate(menu_section_tags(soup), start=1)
+    ]
+    return sections, {"ev": context["ev"], "het": context["het"], "tipus": context["tipus"], "url": response.url}
+
+
+def fetch_lazy_section(session: requests.Session, source: MenuSource, section) -> str:
+    ev = quote(section.get("ev", ""), safe="")
+    het = quote(section.get("het", ""), safe="")
+    ewid = quote(section.get("ewid", ""), safe="")
+    varname = quote(section.get("section", ""), safe="")
+    url = f"{source.base_url}/ajax/szekcio?ev={ev}&het={het}&ewid={ewid}&varname={varname}"
+    response = session.get(
+        url,
+        headers={"Referer": source_url(source, section.get("het")), "X-Requested-With": "XMLHttpRequest"},
+        timeout=20,
+    )
+    response.raise_for_status()
+    return response.text
+
+
+def load_lazy_section(session: requests.Session, source: MenuSource, section) -> None:
+    dummy = section.find(class_=re.compile(r"\bdummy\b"))
+    if not dummy:
+        return
+
+    fragment_html = fetch_lazy_section(session, source, section)
+    if not fragment_html.strip() or fragment_html.startswith("Wrong varname:"):
+        return
+
+    fragment = BeautifulSoup(fragment_html, "html.parser")
+    for child in reversed(list(fragment.contents)):
+        dummy.insert_after(child)
+    dummy.decompose()
+
+
+def extract_item_line_name(tag, section) -> str:
     row = tag.find_parent("tr")
     if row:
-        category_cell = row.find(class_=re.compile(r"\bmenu-cell-code-sub2\b"))
-        if category_cell:
-            category = clean_text(category_cell.get_text(" ", strip=True))
-            if category:
-                return category
+        cells = row.find_all("td", recursive=False)
+        if len(cells) >= 2:
+            line_name = clean_text(cells[1].get_text(" ", strip=True))
+            if line_name:
+                return line_name
 
-    for parent in tag.parents:
-        heading = parent.find_previous(["h2", "h3", "h4", "h5"])
-        if heading:
-            category = clean_text(heading.get_text(" ", strip=True))
-            if category:
-                return category
+    kod = tag.get("kod", "").strip()
+    if kod:
+        code_row = section.find("tr", attrs={"kod": kod})
+        if code_row:
+            cells = code_row.find_all("td", recursive=False)
+            if len(cells) >= 2:
+                line_name = clean_text(cells[1].get_text(" ", strip=True))
+                if line_name:
+                    return line_name
 
     return ""
 
 
-def extract_page_item_name(tag) -> str:
+def extract_page_item_name(tag, section) -> str:
     cell = tag.find_parent(class_=re.compile(r"\bmenu-cell-text\b"))
-    if not cell:
-        return ""
+    if cell:
+        name_tag = cell.find(class_=re.compile(r"\buk-text-break\b"))
+        if name_tag:
+            return clean_text(name_tag.get_text(" ", strip=True))
 
-    name_tag = cell.find(class_=re.compile(r"\buk-text-break\b"))
-    if name_tag:
-        return clean_text(name_tag.get_text(" ", strip=True))
+        text = clean_text(cell.get_text(" ", strip=True))
+        name = re.sub(r"\d[\d.\s]*(?:,-)?\s*Ft\b.*$", "", text).strip()
+        if name:
+            return name
 
-    text = clean_text(cell.get_text(" ", strip=True))
-    return re.sub(r"\d[\d.\s]*(?:,-)?\s*Ft\b.*$", "", text).strip()
+    kod = tag.get("kod", "").strip()
+    nap = tag.get("nap", "").strip()
+    if kod and nap:
+        names = []
+        for block in section.find_all(class_=re.compile(rf"\bhl_{re.escape(kod)}_{re.escape(nap)}\b")):
+            name_tag = block.find(class_=re.compile(r"\buk-text-break\b"))
+            name = clean_text(name_tag.get_text(" ", strip=True)) if name_tag else ""
+            if name:
+                names.append(name)
+        return " | ".join(dict.fromkeys(names))
+
+    return ""
 
 
 def extract_page_item_price(tag) -> str:
@@ -146,8 +262,9 @@ def extract_page_item_price(tag) -> str:
     return parse_price_ft(clean_text(price_text))
 
 
-def parse_menu_items(
-    soup: BeautifulSoup,
+def parse_section_items(
+    section,
+    summary: dict,
     context: dict[str, str],
     source: MenuSource,
     page_url: str,
@@ -155,7 +272,7 @@ def parse_menu_items(
     items: list[dict] = []
     seen: set[tuple[str, str, str]] = set()
 
-    for tag in soup.find_all(True, attrs={"kod": True, "nap": True}):
+    for tag in section.find_all(True, attrs={"kod": True, "nap": True}):
         kod = tag.get("kod", "").strip()
         nap = tag.get("nap", "").strip()
         if not kod or not nap:
@@ -177,8 +294,11 @@ def parse_menu_items(
                 "nap": nap,
                 "nap_nev": DAY_NAMES.get(nap, nap),
                 "kod": kod,
-                "kategoria": extract_item_category(tag),
-                "page_name": extract_page_item_name(tag),
+                "menu_key": summary["key"],
+                "menu_title": summary["title"],
+                "section_name": summary["section_name"],
+                "line_name": extract_item_line_name(tag, section),
+                "page_name": extract_page_item_name(tag, section),
                 "price_ft": extract_page_item_price(tag),
             }
         )
@@ -190,6 +310,7 @@ def fetch_menu_page(
     session: requests.Session,
     source: MenuSource,
     week: str | None = None,
+    selected_section_keys: set[str] | None = None,
 ) -> tuple[dict, list[dict]]:
     url = source_url(source, week)
     response = session.get(url, headers={"Referer": source.base_url}, timeout=20)
@@ -197,13 +318,23 @@ def fetch_menu_page(
 
     soup = BeautifulSoup(response.text, "html.parser")
     context = extract_menu_context(response.text, soup)
-    items = parse_menu_items(soup, context, source, response.url)
+    items: list[dict] = []
+    summaries: list[dict] = []
+    for index, section in enumerate(menu_section_tags(soup), start=1):
+        summary = section_summary(source, section, index)
+        summaries.append(summary)
+        if selected_section_keys is not None and summary["key"] not in selected_section_keys:
+            continue
+        load_lazy_section(session, source, section)
+        items.extend(parse_section_items(section, summary, context, source, response.url))
+
     page_info = {
         "source": source.label,
         "url": response.url,
         "ev": context["ev"],
         "het": context["het"],
         "tipus": context["tipus"],
+        "section_count": len(summaries),
         "item_count": len(items),
     }
     return page_info, items
@@ -231,28 +362,109 @@ def nutrition_empty() -> dict[str, str]:
     }
 
 
-def span_value(spans: list, index: int) -> str:
-    if index >= len(spans):
-        return ""
-    return normalize_number(spans[index].get_text(" ", strip=True))
+def span_groups(spans: list) -> list[list[str]]:
+    values = [normalize_number(span.get_text(" ", strip=True)) for span in spans]
+    groups = []
+    for index in range(0, len(values), 10):
+        group = values[index : index + 10]
+        if len(group) == 10:
+            groups.append(group)
+    return groups
 
 
 def extract_weight_g(soup: BeautifulSoup) -> str:
+    weights = []
     for badge in soup.select("span.uk-badge-neutral"):
         text = badge.get_text(" ", strip=True)
         if re.search(r"\d[\d.,]*\s*g\b", text, re.IGNORECASE):
-            return normalize_number(text)
-    return ""
+            value = normalize_number(text)
+            if value:
+                weights.append(float(value))
+    return format_number(sum(weights)) if weights else ""
 
 
 def extract_allergens(soup: BeautifulSoup) -> str:
-    allergen_label = soup.find("strong", string=re.compile(r"Allerg", re.IGNORECASE))
-    if not allergen_label:
-        return ""
+    allergens = []
+    for allergen_label in soup.find_all("strong", string=re.compile(r"Allerg", re.IGNORECASE)):
+        label_parent = allergen_label.find_parent()
+        allergen_span = label_parent.find_next_sibling("span") if label_parent else None
+        if not allergen_span:
+            continue
+        for allergen in clean_text(allergen_span.get_text(" ", strip=True)).split(","):
+            allergen = allergen.strip()
+            if allergen and allergen not in allergens:
+                allergens.append(allergen)
+    return ", ".join(allergens)
 
-    label_parent = allergen_label.find_parent()
-    allergen_span = label_parent.find_next_sibling("span") if label_parent else None
-    return allergen_span.get_text(" ", strip=True) if allergen_span else ""
+
+def aggregate_adag_values(groups: list[list[str]]) -> dict[str, str]:
+    if not groups:
+        return {
+            "kcal_adag": "",
+            "kj_adag": "",
+            "zsir_adag": "",
+            "zsir_telitett_adag": "",
+            "ch_adag": "",
+            "cukor_adag": "",
+            "rost_adag": "",
+            "feherje_adag": "",
+            "so_adag": "",
+        }
+
+    fields = {
+        "kcal_adag": 1,
+        "kj_adag": 2,
+        "zsir_adag": 3,
+        "zsir_telitett_adag": 4,
+        "ch_adag": 5,
+        "cukor_adag": 6,
+        "rost_adag": 7,
+        "feherje_adag": 8,
+        "so_adag": 9,
+    }
+    totals = {}
+    for field, index in fields.items():
+        values = [float(group[index]) for group in groups if group[index]]
+        totals[field] = format_number(sum(values)) if values else ""
+    return totals
+
+
+def aggregate_per100_values(adag_values: dict[str, str], weight_g: str, per100_groups: list[list[str]]) -> dict[str, str]:
+    fields = {
+        "kcal_100g": ("kcal_adag", 1),
+        "kj_100g": ("kj_adag", 2),
+        "zsir_100g": ("zsir_adag", 3),
+        "ch_100g": ("ch_adag", 5),
+        "feherje_100g": ("feherje_adag", 8),
+    }
+
+    if weight_g:
+        weight = float(weight_g)
+        if weight > 0:
+            return {
+                output_field: format_number(float(adag_values[adag_field]) * 100 / weight)
+                if adag_values.get(adag_field)
+                else ""
+                for output_field, (adag_field, _) in fields.items()
+            }
+
+    if not per100_groups:
+        return {field: "" for field in fields}
+
+    first_group = per100_groups[0]
+    return {
+        output_field: first_group[index]
+        for output_field, (_, index) in fields.items()
+    }
+
+
+def extract_detail_name(soup: BeautifulSoup) -> str:
+    headings = [clean_text(h.get_text(" ", strip=True)) for h in soup.find_all("h1", class_="uk-article-title")]
+    if not headings:
+        return ""
+    if len(headings) > 1 and "összesítés" in headings[0].lower():
+        return " | ".join(headings[1:])
+    return headings[0]
 
 
 def fetch_kodinfo(session: requests.Session, item: dict) -> dict[str, str]:
@@ -273,27 +485,17 @@ def fetch_kodinfo(session: requests.Session, item: dict) -> dict[str, str]:
             return nutrition_empty()
 
         soup = BeautifulSoup(response.text, "html.parser")
-        name_tag = soup.find("h1", class_="uk-article-title")
-        adag_spans = soup.find_all("span", class_="en_adag")
-        per100_spans = soup.find_all("span", class_="en_100")
+        adag_groups = span_groups(soup.find_all("span", class_="en_adag"))
+        per100_groups = span_groups(soup.find_all("span", class_="en_100"))
+        weight_g = extract_weight_g(soup)
+        adag_values = aggregate_adag_values(adag_groups)
+        per100_values = aggregate_per100_values(adag_values, weight_g, per100_groups)
 
         return {
-            "nev": name_tag.get_text(" ", strip=True) if name_tag else "",
-            "suly_g": extract_weight_g(soup),
-            "kcal_adag": span_value(adag_spans, 1),
-            "kj_adag": span_value(adag_spans, 2),
-            "zsir_adag": span_value(adag_spans, 3),
-            "zsir_telitett_adag": span_value(adag_spans, 4),
-            "ch_adag": span_value(adag_spans, 5),
-            "cukor_adag": span_value(adag_spans, 6),
-            "rost_adag": span_value(adag_spans, 7),
-            "feherje_adag": span_value(adag_spans, 8),
-            "so_adag": span_value(adag_spans, 9),
-            "kcal_100g": span_value(per100_spans, 1),
-            "kj_100g": span_value(per100_spans, 2),
-            "zsir_100g": span_value(per100_spans, 3),
-            "ch_100g": span_value(per100_spans, 5),
-            "feherje_100g": span_value(per100_spans, 8),
+            "nev": extract_detail_name(soup),
+            "suly_g": weight_g,
+            **adag_values,
+            **per100_values,
             "allergének": extract_allergens(soup),
         }
     except Exception:
@@ -302,8 +504,9 @@ def fetch_kodinfo(session: requests.Session, item: dict) -> dict[str, str]:
 
 def row_from_item(item: dict, nutrition: dict[str, str]) -> dict:
     return {
-        "forrás": item["source"],
-        "kategória": item["kategoria"],
+        "menü": item["menu_title"],
+        "menü_azonosító": item["section_name"],
+        "sor_név": item["line_name"],
         "hét": item["het"],
         "év": item["ev"],
         "nap_szám": item["nap"],
@@ -327,13 +530,13 @@ def row_from_item(item: dict, nutrition: dict[str, str]) -> dict:
         "szénhidrát_g_100g": nutrition["ch_100g"],
         "fehérje_g_100g": nutrition["feherje_100g"],
         "allergének": nutrition["allergének"],
-        "forrás_url": item["source_url"],
     }
 
 
 def scrape_menu_rows(
     sources: Iterable[MenuSource] | None = None,
     week: str | None = None,
+    selected_section_keys: set[str] | None = None,
     progress_callback: NutritionProgress | None = None,
     delay_seconds: float = 0.1,
 ) -> tuple[list[dict], list[dict]]:
@@ -345,7 +548,7 @@ def scrape_menu_rows(
     page_infos: list[dict] = []
     items: list[dict] = []
     for source in selected_sources:
-        page_info, page_items = fetch_menu_page(session, source, week)
+        page_info, page_items = fetch_menu_page(session, source, week, selected_section_keys)
         page_infos.append(page_info)
         items.extend(page_items)
 
